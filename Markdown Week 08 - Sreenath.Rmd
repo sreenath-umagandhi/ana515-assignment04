@@ -1,0 +1,151 @@
+---
+title: "ANA 515 Week 08 - Assignment 4"
+author: Sreenath Umagandhi
+date: 11-22-2021
+output: 
+  html_document:
+    theme:
+      bootswatch: slate
+---
+
+```{r setup, include = FALSE}
+library(janeaustenr)
+library(stringr)
+library(tidytext)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(reshape2)
+library(wordcloud)
+```
+
+```{r, include = TRUE}
+# Question 1: Goals of the project?
+
+# The goal of this project is to build a sentiment analysis model which helps in categorizing words
+# based on their sentiments, either positive or negative and the magnitude of it.
+```
+
+```{r, include = TRUE}
+# Question 2: Where did the dataset come from?
+
+# http://ai.stanford.edu/~amaas/data/sentiment/
+# The dataset is collected from the above URL that has Jane Austen’s books
+
+# http://ai.stanford.edu/~amaas/papers/wvSent_acl2011.bib
+# The above research paper/book is their work for which this dataset was collected.
+```
+
+```{r, include = TRUE}
+# Question 3: Code that helped to import data?
+
+tidy_data <- austen_books() %>%
+ group_by(book) %>%
+ mutate(linenumber = row_number(),
+   chapter = cumsum(str_detect(text, regex("^chapter [\\divxlc]", 
+                          ignore_case = TRUE)))) %>%
+ungroup() %>%
+unnest_tokens(word, text)
+```
+
+```{r, include = TRUE}
+# Question 4: Describe the data set?
+
+#Number of Rows
+nrow(tidy_data)
+#Number of Columns
+ncol(tidy_data)
+#Column Names
+colnames(tidy_data)
+#Summary
+summary(tidy_data)
+```
+
+```{r, include = TRUE}
+# Question 5: Data cleaning and preperation?
+
+# They have segregated the data into separate columns of positive and negative sentiments which
+# will be useful in distinguishing between positive and negative sentiments
+
+# They could clearly rename the column names to make it more readable.
+
+# That is everything I can find in this data set. However, generally you can find improper
+# phone numbers, missing records, state name in place of country (data error), etc.
+# which needs to be fixed.
+
+```
+
+```{r, include = TRUE}
+# Question 6: Modelling?
+
+# There are three general purpose lexicons used: AFINN, bing, loughran. Lexicon is a vocabulary of 
+# a language.
+
+# These three lexicons make use of the unigrams. Unigrams are a type of n-gram model that consists 
+# of a sequence of 1 item, that is, a word collected from a given textual data. In the AFINN lexicon model 
+# scores the words in a range from -5 to 5. The increase in negativity corresponds the negative sentiment 
+# whereas an increase in positivity corresponds the positive one. The bing lexicon model on the other hand, 
+# classifies the sentiment into a binary category of negative or positive. And finally, the loughran model 
+# that performs analysis of the shareholder’s reports. In this project, we will make use of the bing lexicons 
+# to extract the sentiments out of our data. We can retrieve these lexicons using the get_sentiments().
+
+# We use lexical analuzer "bing" in this project.
+```
+
+```{r, include = TRUE}
+# Question 7: Produce and discuss the output?
+
+# Getting the positive sentiments and storing into a variable called positive_senti.
+positive_senti <- get_sentiments("bing") %>%
+ filter(sentiment == "positive")
+tidy_data %>%
+ filter(book == "Emma") %>%
+ semi_join(positive_senti) %>%
+ count(word, sort = TRUE)
+
+#Spread function to segregate the data into positive and negative columns.
+bing <- get_sentiments("bing")
+Emma_sentiment <- tidy_data %>%
+ inner_join(bing) %>%
+ count(book = "Emma" , index = linenumber %/% 80, sentiment) %>%
+ spread(sentiment, n, fill = 0) %>%
+ mutate(sentiment = positive - negative)
+```
+
+```{r, include = TRUE}
+# Question 8: Visualization?
+
+# Visualize the words present in the book "Emma" based on their corresponding positive and negative scores.
+ggplot(Emma_sentiment, aes(index, sentiment, fill = book)) +
+ geom_bar(stat = "identity", show.legend = TRUE) +
+ facet_wrap(~book, ncol = 2, scales = "free_x")
+
+# Count most common positive and negative words present in the novel.
+counting_words <- tidy_data %>%
+ inner_join(bing) %>%
+ count(word, sentiment, sort = TRUE)
+head(counting_words)
+
+#Visualizing the sentiment score for the positive and negative words along the axis.
+
+counting_words %>%
+ filter(n > 150) %>%
+ mutate(n = ifelse(sentiment == "negative", -n, n)) %>%
+ mutate(word = reorder(word, n)) %>%
+ ggplot(aes(word, n, fill = sentiment))+
+ geom_col() +
+ coord_flip() +
+ labs(y = "Sentiment Score")
+
+# A wordcloud that will delineate the most recurring positive and negative word.
+
+tidy_data %>%
+ inner_join(bing) %>%
+ count(word, sentiment, sort = TRUE) %>%
+ acast(word ~ sentiment, value.var = "n", fill = 0) %>%
+ comparison.cloud(colors = c("red", "dark green"),
+          max.words = 100)
+```
+
+
+
